@@ -19,7 +19,7 @@ class CopyThenAutoGit {
                 inculdes,
                 exculdes,
                 retry = 3,
-                branch = 'dev',
+                branch = 'master',
                 version = new Date().getTime()
         } = this.options;
 
