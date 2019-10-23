@@ -3,6 +3,14 @@ webpack插件 copy-then-auto-git
 
 ### 用于自动拷贝静态资源、自动提交到远程仓库
 
+### 插件能帮助我们做什么？插件会按步骤自动进行以下工作
+
++ 在gitDir路径下切换branch分支
++ git pull远程仓库branch分支代码
++ 删除assetsDir路径下文件
++ 拷贝webpack编译后的文件到assetsDir路径
++ git add、git commit、git push 推送到远程仓库的branch分支
+
 ## 前提
 
 需要 Node 版本在 v8.0 以上
