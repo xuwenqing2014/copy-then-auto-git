@@ -184,7 +184,7 @@ class CopyThenAutoGit {
         if (compiler.hooks) { // For webpack >= 4
             compiler.hooks.afterEmit.tapAsync('gitOperate', gitOperate);
         } else { // For webpack < 4
-            compiler.plugin('after-emit', copyFiles);
+            compiler.plugin('after-emit', gitOperate);
         }
     }
 }
