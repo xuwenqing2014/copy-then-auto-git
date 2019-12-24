@@ -15,13 +15,16 @@ class CopyThenAutoGit {
     apply(compiler) {
         let {
             assetsDir = 'publish',
-                gitDir = 'publish',
-                inculdes,
-                exculdes,
-                retry = 3,
-                branch = 'master',
-                version = new Date().getTime()
+            gitDir = 'publish',
+            inculdes,
+            exculdes,
+            retry = 3,
+            branch = 'master',
+            version = new Date().getTime()
         } = this.options;
+        
+        // 回退到项目根路径
+        const upToRoot = '../../';
 
         /**
          * 拷贝文件到{assetsDir}文件夹
@@ -67,9 +70,9 @@ class CopyThenAutoGit {
                 return new Promise((resolve, reject) => {
                     let names = name.split('/');
                     names.pop();
-                    mkdirs.sync(path.resolve(__dirname, `../../${assetsDir}${names.join('/')}`));
+                    mkdirs.sync(path.resolve(__dirname, upToRoot + assetsDir + names.join('/')));
                     fs.writeFile(
-                        path.resolve(__dirname, `../../${assetsDir}${name}`),
+                        path.resolve(__dirname, upToRoot + assetsDir + name),
                         assets[name]['source'](), 'utf8',
                         err => {
                             let fi = _failedFiles.indexOf(name);
@@ -94,10 +97,10 @@ class CopyThenAutoGit {
             // 文件移动复制进程
             const _cpoyProcess = () => {
                 return Promise.all(
-                        _files.map(e => _copyFile(e)))
+                    _files.map(e => _copyFile(e)))
                     .then(rs => {
-                            Promise.resolve(rs);
-                        },
+                        Promise.resolve(rs);
+                    },
                         _finish
                     )
             }
@@ -144,7 +147,7 @@ class CopyThenAutoGit {
          */
         const gitOperate = (compilation, callback) => {
             exec(`git checkout ${branch}`, {
-                cwd: path.resolve(__dirname, `../../${gitDir}`)
+                cwd: path.resolve(__dirname, upToRoot + gitDir)
             }, error => {
                 if (error) {
                     console.log(colors.red.underline(error));
@@ -155,7 +158,7 @@ class CopyThenAutoGit {
                     //分支切换完成，移动复制打包代码
                     copyFiles(compilation, () => {
                         exec(`git add . && git commit -a -m 'auto-${branch}-git-${version}'`, {
-                            cwd: path.resolve(__dirname, `../../${gitDir}`)
+                            cwd: path.resolve(__dirname, upToRoot + gitDir)
                         }, error => {
                             if (error) {
                                 console.log(colors.red.underline(error));
@@ -164,7 +167,7 @@ class CopyThenAutoGit {
                             } else {
                                 console.log(colors.green('commit成功'));
                                 exec('git push', {
-                                    cwd: path.resolve(__dirname, `../../${gitDir}`)
+                                    cwd: path.resolve(__dirname, upToRoot + gitDir)
                                 }, error => {
                                     if (error) {
                                         console.log(colors.red.underline(error));
