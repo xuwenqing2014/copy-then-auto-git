@@ -24,7 +24,7 @@ class CopyThenAutoGit {
         } = this.options;
         
         // 回退到项目根路径
-        const upToRoot = '../../';
+        const upToRoot = '../';
 
         /**
          * 拷贝文件到{assetsDir}文件夹
