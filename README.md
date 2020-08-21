@@ -7,8 +7,8 @@ webpack插件 copy-then-auto-git
 
 + 在gitDir路径下切换branch分支
 + git pull远程仓库branch分支代码
-+ 删除assetsDir路径下文件
-+ 拷贝webpack编译后的文件到assetsDir路径
++ 删除destination路径下资源
++ 拷贝source路径的资源到destination路径
 + git add、git commit、git push 推送到远程仓库的branch分支
 
 ## 前提
