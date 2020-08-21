@@ -23,10 +23,8 @@ webpack插件 copy-then-auto-git
 
 支持的配置项:
 
-+ `assetsDir` 静态资源需要拷贝到的目标路径（无需配置静态资源的来源路径，因为webpack能直接获取到编译后的静态资源），默认是publish
-+ `inculdes` 需要拷贝的静态资源文件名正则的集合，比如`[/^.*\.html$/]`，无默认值
-+ `exculdes` 不需要拷贝的静态资源文件名正则的集合，比如`[/^.*\.html$/]`，无默认值
-+ `retry` 如果拷贝失败，重试的次数，默认是3
++ `source` 静态资源需要拷贝的来源路径，必填项，无默认值
++ `destination` 静态资源需要拷贝到的目标路径，必填项，无默认值
 + `gitDir` 执行git命令的根路径，默认是publish
 + `branch` 执行git命令的分支名，默认是master
 + `version` 自动提交时的版本号，默认是当前时间的毫秒数
@@ -37,11 +35,9 @@ const CopyThenAutoGit = require('copy-then-auto-git');
 
 // 配置 Plugin
 const copyThenAutoGit = new CopyThenAutoGit({
-    assetsDir: 'publish',
+    source: 'build',
+    destination: 'publish/www',
     gitDir: 'publish',
-    inculdes: [/^.*\.html$/],
-    exculdes: [/^.*\.html$/],
-    retry: 3,
     branch: 'dev',
     version: new Date().getTime()
 });

@@ -1,11 +1,15 @@
+
 /*
  * @file: webpack插件-拷贝编译完成的静态资源，并自动将静态资源提交到远程仓库
  */
+const colors = require('colors');
+const exec = require('child_process').exec;
 const fs = require('fs');
 const path = require('path');
-const colors = require('colors');
-const mkdirs = require('jm-mkdirs');
-const exec = require('child_process').exec;
+const cpx = require('cpx');
+const fsExtra = require('fs-extra');
+const makeDir = require('make-dir');
+const rimraf = require('rimraf');
 
 class CopyThenAutoGit {
     constructor(options) {
@@ -14,130 +18,110 @@ class CopyThenAutoGit {
 
     apply(compiler) {
         let {
-            assetsDir = 'publish',
             gitDir = 'publish',
-            inculdes,
-            exculdes,
-            retry = 3,
             branch = 'master',
-            version = new Date().getTime()
+            version = new Date().getTime(),
+            source,
+            destination
         } = this.options;
-        
-        // 回退到项目根路径
-        const upToRoot = '../';
 
         /**
-         * 拷贝文件到{assetsDir}文件夹
-         * @param {*} compilation webpack编译类
-         * @param {*} callback  插件任务完成后的回调
+         * 执行拷贝操作
+         *
+         * @param {string} source - 被拷贝的路径
+         * @param {string} destination - 目标路径
+         * @return {Promise} - promise
          */
-        const copyFiles = (compilation, callback) => {
-            let assets = compilation.assets;
-            let filesNames = Object.keys(assets);
-            let _files = filesNames;
-            if (inculdes) {
-                inculdes.forEach(item => {
-                    _files = _files.filter(e => item.test(e));
-                });
+        function copyAction(source, destination) {
+            if (!source || !destination) {
+                console.log(colors.red.underline('copy-then-auto-git --- 请输入配置的拷贝参数'));
+                return null;
             }
-            if (exculdes) {
-                exculdes.forEach(item => {
-                    _files = _files.filter(e => !item.test(e));
-                });
-            }
-            let _failedFiles = [];
-            let _retryCount = 0;
 
-            // 删除文件函数
-            const _delDir = (path) => {
-                let files = [];
-                if (fs.existsSync(path)) {
-                    files = fs.readdirSync(path);
-                    files.forEach(file => {
-                        let curPath = path + '/' + file;
-                        if (fs.statSync(curPath).isDirectory()) {
-                            _delDir(curPath); //递归删除文件夹
-                        } else {
-                            fs.unlinkSync(curPath); //删除文件
-                        }
-                    });
-                    fs.rmdirSync(path);
-                }
-            };
+            return new Promise(function (resolve, reject) {
+                let fileRegex = /(\*|\{+|\}+)/g;
+                let matches = fileRegex.exec(source);
+                if (matches === null) {
+                    fs.lstat(source, function (sErr, sStats) {
+                        if (sErr) return reject(sErr);
 
-            // 单个文件移动复制函数
-            const _copyFile = (name) => {
-                return new Promise((resolve, reject) => {
-                    let names = name.split('/');
-                    names.pop();
-                    mkdirs.sync(path.resolve(__dirname, upToRoot + assetsDir + names.join('/')));
-                    fs.writeFile(
-                        path.resolve(__dirname, upToRoot + assetsDir + name),
-                        assets[name]['source'](), 'utf8',
-                        err => {
-                            let fi = _failedFiles.indexOf(name);
-                            if (err) {
-                                console.log('\n', colors.red(`${name}:拷贝失败`), '\n', err, '\n');
-                                if (fi == -1) {
-                                    _failedFiles.push(name);
+                        fs.lstat(destination, function (dErr, dStats) {
+                            if (sStats.isFile()) {
+                                let newDestination = dStats && dStats.isDirectory() ? destination + '/' + path.basename(source) : destination;
+
+                                let pathInfo = path.parse(newDestination);
+
+                                let execCopy = function execCopy(src, dest) {
+                                    fsExtra.copy(src, dest, function (err) {
+                                        if (err) reject(err);
+                                        resolve();
+                                    });
+                                };
+
+                                if (pathInfo.ext === '') {
+                                    makeDir(newDestination).then(function (mPath) {
+                                        execCopy(source, newDestination + '/' + path.basename(source));
+                                    });
+                                } else {
+                                    execCopy(source, newDestination);
                                 }
-                                reject(err);
                             } else {
-                                console.log('\n', colors.green(`${name}:拷贝成功`), '\n');
-                                if (fi != -1) {
-                                    _failedFiles.splice(fi, 1);
-                                }
-                                resolve();
+                                let sourceDir = source + (source.substr(-1) !== '/' ? '/' : '') + '**/*';
+                                copyDirectory(sourceDir, destination, resolve, reject);
                             }
-                        }
-                    )
-                });
-            }
-
-            // 文件移动复制进程
-            const _cpoyProcess = () => {
-                return Promise.all(
-                    _files.map(e => _copyFile(e)))
-                    .then(rs => {
-                        Promise.resolve(rs);
-                    },
-                        _finish
-                    )
-            }
-
-            // 文件复制失败重试 最多重试{retry}次数
-            const _retryProcess = (err) => {
-                ++_retryCount;
-                if (err && _retryCount > retry) {
-                    console.log('\n');
-                    return Promise.reject(err);
-                } else if (_failedFiles.length && _retryCount <= retry) {
-                    return Promise.all(_failedFiles.map(e => _copyFile(e)))
-                        .then(rs => Promise.resolve(rs), _retryProcess);
+                        });
+                    });
                 } else {
-                    return Promise.resolve();
+                    copyDirectory(source, destination, resolve, reject);
                 }
-            }
+            });
+        }
 
-            // 复制完成
-            const _finish = (err) => {
-                if (err) {
-                    console.log('\n', colors.red.underline(err), '\n');
-                } else {
-                    console.log('\n', colors.green('静态资源已成功移入assetsDir中'), '\n');
-                }
-                callback(err);
+        /**
+         * 执行拷贝文件夹
+         *
+         * @param {string} source - 被拷贝的路径
+         * @param {string} destination - 目标路径
+         * @param {Function} resolve - promise resolve
+         * @param {Function} reject - promise reject
+         * @return {void}
+         */
+        function copyDirectory(source, destination, resolve, reject) {
+            let cpxOptions = {
+                clean: false,
+                includeEmptyDirs: true,
+                update: false
             };
 
-            // 清空文件夹
-            _delDir(path.resolve(__dirname, assetsDir.replace(/\/$/, '')));
+            cpx.copy(source, destination, cpxOptions, function (err) {
+                if (err) {
+                    console.log(colors.red.underline('copy-then-auto-git --- 拷贝失败'), err);
+                    reject(err);
+                }
+                resolve();
+            });
+        }
 
-            // 拷贝进程开始
-            _cpoyProcess().then(() => {
-                return _retryProcess();
-            }, _retryProcess).then(() => {
-                _finish();
-            }, _finish);
+        /**
+         * 删除操作
+         * @param {string} destination - 目标路径
+         * @return {Promise} - promise
+         */
+        function deleteAction(destination) {
+            return new Promise(function (resolve, reject) {
+                if (typeof destination !== 'string') {
+                    console.log(colors.red(`copy-then-auto-git --- 请配置正确的目标路径`));
+                    reject();
+                }
+                rimraf(destination, {}, function (response) {
+                    if (response === null) {
+                        console.log(colors.green(`copy-then-auto-git --- 删除成功`));
+                    } else {
+                        console.log(colors.red(`copy-then-auto-git --- 删除失败`));
+                    }
+                    resolve();
+                });
+            });
         }
 
         /**
@@ -147,46 +131,59 @@ class CopyThenAutoGit {
          */
         const gitOperate = (compilation, callback) => {
             exec(`git checkout ${branch}`, {
-                cwd: path.resolve(__dirname, upToRoot + gitDir)
-            }, error => {
+                cwd: path.resolve(__dirname, '../../', gitDir)
+            }, async error => {
                 if (error) {
-                    console.log(colors.red.underline(error));
+                    console.log(colors.red.underline('copy-then-auto-git --- 切换分支失败'), error);
                     callback();
                     return;
                 } else {
-                    console.log(colors.yellow.underline(`当前分支:${branch}`));
-                    //分支切换完成，移动复制打包代码
-                    copyFiles(compilation, () => {
-                        exec(`git add . && git commit -a -m 'auto-${branch}-git-${version}'`, {
-                            cwd: path.resolve(__dirname, upToRoot + gitDir)
-                        }, error => {
-                            if (error) {
-                                console.log(colors.red.underline(error));
-                                callback();
-                                return
-                            } else {
-                                console.log(colors.green('commit成功'));
-                                exec('git push', {
-                                    cwd: path.resolve(__dirname, upToRoot + gitDir)
-                                }, error => {
-                                    if (error) {
-                                        console.log(colors.red.underline(error));
-                                        callback();
-                                        return
-                                    } else {
-                                        console.log(colors.green('push成功'));
-                                        callback();
-                                    }
-                                });
-                            }
-                        });
+                    console.log(colors.yellow.underline(`copy-then-auto-git --- 当前分支:${branch}`));
+                    try {
+                        await deleteAction(destination);
+                    } catch (error) {
+                        console.log(colors.red.underline('copy-then-auto-git --- 删除失败'), error);
+                        callback();
+                        return;
+                    }
+                    try {
+                        await copyAction(source, destination);
+                    } catch (error) {
+                        console.log(colors.red.underline('copy-then-auto-git --- 拷贝失败'), error);
+                        callback();
+                        return;
+                    }
+                    
+                    console.log(colors.green(`copy-then-auto-git --- 拷贝资源到${branch}分支成功`));
+                    exec(`git add . && git commit -a -m 'auto-${branch}-git-${version}'`, {
+                        cwd: path.resolve(__dirname, '../../', gitDir)
+                    }, error => {
+                        if (error) {
+                            console.log(colors.red.underline('copy-then-auto-git --- commit失败'), error);
+                            callback();
+                            return;
+                        } else {
+                            console.log(colors.green(`copy-then-auto-git --- commit到${branch}分支成功`));
+                            exec('git push', {
+                                cwd: path.resolve(__dirname, '../../', gitDir)
+                            }, error => {
+                                if (error) {
+                                    console.log(colors.red.underline('copy-then-auto-git --- push失败'), error);
+                                    callback();
+                                    return;
+                                } else {
+                                    console.log(colors.green(`copy-then-auto-git --- push到${branch}分支成功`));
+                                    callback();
+                                }
+                            });
+                        }
                     });
                 }
             });
         }
-        if (compiler.hooks) { // For webpack >= 4
+        if (compiler.hooks) { // webpack >= 4
             compiler.hooks.afterEmit.tapAsync('gitOperate', gitOperate);
-        } else { // For webpack < 4
+        } else { // webpack < 4
             compiler.plugin('after-emit', gitOperate);
         }
     }

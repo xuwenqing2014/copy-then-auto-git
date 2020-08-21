@@ -1,6 +1,6 @@
 {
   "name": "copy-then-auto-git",
-  "version": "1.1.0",
+  "version": "2.0.1",
   "description": "This is a plugin for copy assets, and auto git.It can help developers to publish code to remote repository.",
   "main": "index.js",
   "scripts": {
@@ -19,7 +19,10 @@
   "license": "ISC",
   "devDependencies": {
     "colors": "^1.1.2",
-    "jm-mkdirs": "^0.0.1"
+    "cpx": "^1.5.0",
+    "fs-extra": "^7.0.0",
+    "make-dir": "^1.1.0",
+    "rimraf": "^2.6.2"
   },
   "bugs": {
     "url": "https://github.com/xuwenqing2014/copy-then-auto-git/issues"
