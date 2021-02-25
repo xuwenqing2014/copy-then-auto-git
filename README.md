@@ -28,6 +28,7 @@ webpack插件 copy-then-auto-git
 + `gitDir` 执行git命令的根路径，默认是publish
 + `branch` 执行git命令的分支名，默认是master
 + `version` 自动提交时的版本号，默认是当前时间的毫秒数
++ `remove` 是否删除旧文件，默认是删除
 
 ```js
 // 引入
@@ -39,7 +40,8 @@ const copyThenAutoGit = new CopyThenAutoGit({
     destination: 'publish/www',
     gitDir: 'publish',
     branch: 'dev',
-    version: new Date().getTime()
+    version: new Date().getTime(),
+    remove: false
 });
 
 // Webpack 的配置

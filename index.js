@@ -22,7 +22,8 @@ class CopyThenAutoGit {
             branch = 'master',
             version = new Date().getTime(),
             source,
-            destination
+            destination,
+            remove = true
         } = this.options;
 
         /**
@@ -162,14 +163,17 @@ class CopyThenAutoGit {
                 callback();
                 return;
             }
-            // 删除目标路径资源
-            try {
-                await deleteAction(destination);
-                console.log(colors.yellow.underline(`copy-then-auto-git --- 删除${destination}成功`));
-            } catch (err) {
-                console.log(colors.red.underline(`copy-then-auto-git --- 删除${destination}失败`), err);
-                callback();
-                return;
+            // 如果配置了删除资源
+            if (remove) {
+                // 删除目标路径资源
+                try {
+                    await deleteAction(destination);
+                    console.log(colors.yellow.underline(`copy-then-auto-git --- 删除${destination}成功`));
+                } catch (err) {
+                    console.log(colors.red.underline(`copy-then-auto-git --- 删除${destination}失败`), err);
+                    callback();
+                    return;
+                }
             }
             // 拷贝资源到目标路径
             try {
